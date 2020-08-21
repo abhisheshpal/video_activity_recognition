@@ -133,6 +133,12 @@ def dict_data_analysis(dict, total_frames = 0):
 			mean_new_got_list_1.append(mean(got_list_1[j]))
 	return mean_new_got_list_0, mean_new_got_list_1, new_got_list_0, new_got_list_1
 
+# plot list items using keys
+def list_analsis(dict, key, total_frames):
+	need_robot_list = []
+	if total_frames >= 2:
+		need_robot_list = dict[key]
+	return need_robot_list
 
 # get the items from list
 get_all_list = []
@@ -142,51 +148,11 @@ def get_list_items(list):
 	return get_all_list
 
 
-
-# # Function to segment the activity using collection of algorithm 
-# def count_events(key, dict):
-#  	robot_requirement0 = None
-#  	text1 = None
-#  	robot_requirement_list0 = []
-# # 	robot_requirement_list1 = []
-# # 	robot_requirement_list2 = []
-
-#  	if len(dict[key]) > 6:
-# 		if max(dict[key][-5:]) == 'Not Picking':# and dict[key][-5:] == 'Not Picking':
-#  			print ('value_key0_notpicking',dict[key][-5:])
-#  			robot_requirement0 = "Call robot"
-#  			text1 = "{}:{}".format(key ,robot_requirement0)
-# # 			robot_requirement_list0.append(robot_requirement0)
-# # 			if len(robot_requirement_list0) >= 2:
-# # 				robot_requirement0 = "definite Call"
-# # 				text1 = "{}:{}".format(key ,robot_requirement0)
-            
-# 		elif max(dict[key][-5:]) == 'Picking': # and dict[key][-5:] == 'Picking':
-#  			print ('value_key0_picking',dict[key][-5:])
-#  			robot_requirement0 = "Wait to finish"
-#  			text1 = "{}:{}".format(key ,robot_requirement0)
-# # 			robot_requirement_list0.append(robot_requirement0)
-# # 			if len(robot_requirement_list0) >= 2:
-# # 				robot_requirement0 = "definite Waiting" 
-# # 				text1 = "{}:{}".format(key, robot_requirement0)
-            
-# 		elif dict[0][-5:][3:] == dict[0][-5:][1:3]:
-#  			print ('value_key0_else',dict[key][-5:])
-#  			robot_requirement0 = "Continue previous activity"
-#  			text1 = "{}:{}".format(key ,robot_requirement0)
-# 		robot_requirement_list0.append(robot_requirement0)
-# # 			if len(robot_requirement_list0) >= 1:
-# # 				robot_requirement0 = " Just previous activity" 
-# # 				text1 = "{}:{}".format(key, robot_requirement0)
-# 		print(key, robot_requirement0)
-#  	return(robot_requirement0, robot_requirement_list0, text1)
-
-
 # Function to segment the activity using collection of algorithm 
 def count_events(key, dict):
 	counter = 0
 	robot_requirement0 = None
-	robot_requirement_list = []
+# 	robot_requirement_list = []
 
 	text1 = None
 	if len(dict[key]) > 6:
@@ -199,15 +165,17 @@ def count_events(key, dict):
 				if i == 'Not Picking':
 					print ('value_key0_notpicking',dict[key][-5:])
 					robot_requirement0 = "Call robot"
-					text1 = "{}:{}".format(key ,robot_requirement0) 
+					text1 = "{}:{}".format(key ,robot_requirement0)
 				if i == 'Picking':
 					print ('value_key0_picking',dict[key][-5:])
 					robot_requirement0 = "Wait to finish"
 					text1 = "{}:{}".format(key ,robot_requirement0)
 
-		robot_requirement_list.append(robot_requirement0)
+	if len(dict[key]) <= 6:
+		robot_requirement0 = "Decision pending"
+		
 		print(key, robot_requirement0)
-	return(robot_requirement0, robot_requirement_list, text1)
+	return(robot_requirement0, text1)
 
 
 
@@ -692,8 +660,6 @@ def get_depthFlow(imPrev, imNew):
 
 
 
-
-
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 #ap.add_argument("-i", "--image", required=True,
@@ -737,10 +703,10 @@ print("[INFO] loading Mask R-CNN from disk...")
 net = cv2.dnn.readNetFromTensorflow(weightsPath, configPath)
 
 # this video is from static camera
-# cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/videos_from_orchard_picking_static_camera/orchard_dataset_static_camera_videos_bag_10.mp4')
+cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/videos_from_orchard_picking_static_camera/orchard_dataset_static_camera_videos_bag_10.mp4')
 # cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/orchard_dataset_static_camera_videos_bag_9.mp4')
 # cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/picking2.mp4')
-cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/unloading_short.mp4')
+# cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/unloading_short.mp4')
 
 ret, frame = cam.read()
 #prev_frame = imutils.resize(frame, width=WIDTH)
@@ -782,7 +748,7 @@ mean_clust_res_vel_1_dict = {}
 mean_clust_res_vel_2_dict = {}
 mean_clust_flow_3_dict = {}
 mean_clust_res_vel_3_dict = {}
-
+need_robot_dict = {}
 # try to determine the total number of frames in the video file
 try:
 #	fn = sys.argv[1]
@@ -1161,6 +1127,10 @@ while (cam.isOpened()):
 					axes[1].set_ylabel('Angle');
 					axes[1].set_title('Angular orientation of motion of the flow')
 
+				  	#plt.xlabel('X'),plt.ylabel('Y')
+					figure.tight_layout()
+					plt.show(block=True)
+
 		        
 	  		##=================================================================================================
 				
@@ -1270,7 +1240,21 @@ while (cam.isOpened()):
 					color_r = [0, 0, 255] # Red
 					
 					# check if need robot or not                    
-					need_robot0, need_robot_list, text1 = count_events(i, Activity_dict)
+					need_robot0, text1 = count_events(i, Activity_dict)
+					add_element(need_robot_dict, i, need_robot0)  
+					need_robot_list = list_analsis(need_robot_dict, i, total_frames= total_pickers)
+					activity_dict_list = list_analsis(Activity_dict, i, total_frames= total_pickers)
+					#plt.hist(dict[key])
+					plt.plot(need_robot_list, label = i)
+					plt.plot(activity_dict_list, label = i)
+					plt.xlabel('No. of frames')
+					plt.ylabel('Robot requirement')
+					plt.legend(loc="upper left")
+					plt.title("Comparing robot requirement for local and global frame analysis")
+					plt.legend()
+					plt.show()  
+
+
 					color_pick = []
 					if Activity == 'Picking':
 						color_pick = color_g
