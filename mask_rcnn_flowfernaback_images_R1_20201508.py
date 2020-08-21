@@ -143,41 +143,71 @@ def get_list_items(list):
 
 
 
+# # Function to segment the activity using collection of algorithm 
+# def count_events(key, dict):
+#  	robot_requirement0 = None
+#  	text1 = None
+#  	robot_requirement_list0 = []
+# # 	robot_requirement_list1 = []
+# # 	robot_requirement_list2 = []
+
+#  	if len(dict[key]) > 6:
+# 		if max(dict[key][-5:]) == 'Not Picking':# and dict[key][-5:] == 'Not Picking':
+#  			print ('value_key0_notpicking',dict[key][-5:])
+#  			robot_requirement0 = "Call robot"
+#  			text1 = "{}:{}".format(key ,robot_requirement0)
+# # 			robot_requirement_list0.append(robot_requirement0)
+# # 			if len(robot_requirement_list0) >= 2:
+# # 				robot_requirement0 = "definite Call"
+# # 				text1 = "{}:{}".format(key ,robot_requirement0)
+            
+# 		elif max(dict[key][-5:]) == 'Picking': # and dict[key][-5:] == 'Picking':
+#  			print ('value_key0_picking',dict[key][-5:])
+#  			robot_requirement0 = "Wait to finish"
+#  			text1 = "{}:{}".format(key ,robot_requirement0)
+# # 			robot_requirement_list0.append(robot_requirement0)
+# # 			if len(robot_requirement_list0) >= 2:
+# # 				robot_requirement0 = "definite Waiting" 
+# # 				text1 = "{}:{}".format(key, robot_requirement0)
+            
+# 		elif dict[0][-5:][3:] == dict[0][-5:][1:3]:
+#  			print ('value_key0_else',dict[key][-5:])
+#  			robot_requirement0 = "Continue previous activity"
+#  			text1 = "{}:{}".format(key ,robot_requirement0)
+# 		robot_requirement_list0.append(robot_requirement0)
+# # 			if len(robot_requirement_list0) >= 1:
+# # 				robot_requirement0 = " Just previous activity" 
+# # 				text1 = "{}:{}".format(key, robot_requirement0)
+# 		print(key, robot_requirement0)
+#  	return(robot_requirement0, robot_requirement_list0, text1)
+
+
 # Function to segment the activity using collection of algorithm 
 def count_events(key, dict):
+	counter = 0
 	robot_requirement0 = None
-	text1 = None
 	robot_requirement_list = []
+
+	text1 = None
 	if len(dict[key]) > 6:
-		if max(dict[key][-5:]) == 'Not Picking':# and dict[key][-5:] == 'Not Picking':
-			print ('value_key0_notpicking',dict[key][-5:])
-			robot_requirement0 = "Call robot"
-			text1 = "{}:{}".format(key ,robot_requirement0)
-			robot_requirement_list.append(robot_requirement0)
-			if len(robot_requirement_list) >= 2:
-				robot_requirement0 = "definite Call"
-				text1 = "{}:{}".format(key ,robot_requirement0)
-            
-		elif max(dict[key][-5:]) == 'Picking': # and dict[key][-5:] == 'Picking':
-			print ('value_key0_picking',dict[key][-5:])
-			robot_requirement0 = "Wait to finish"
-			text1 = "{}:{}".format(key ,robot_requirement0)
-			robot_requirement_list.append(robot_requirement0)
-			if len(robot_requirement_list) >= 2:
-				robot_requirement0 = "definite Waiting" 
-				text1 = "{}:{}".format(key, robot_requirement0)
-            
-		elif dict[0][-5:][3:] == dict[0][-5:][1:3]:
-			print ('value_key0_else',dict[key][-5:])
-			robot_requirement0 = "Continue previous activity"
-			text1 = "{}:{}".format(key ,robot_requirement0)
-			robot_requirement_list.append(robot_requirement0)
-			if len(robot_requirement_list) >= 1:
-				robot_requirement0 = " Just previous activity" 
-				text1 = "{}:{}".format(key, robot_requirement0)
+# 		num = dict[key][0]
+		for i in dict[key][-5:]:
+			curr_frequency = dict[key][-5:].count(i) 
+			if(curr_frequency> counter): 
+				counter = curr_frequency 
+# 				num = i
+				if i == 'Not Picking':
+					print ('value_key0_notpicking',dict[key][-5:])
+					robot_requirement0 = "Call robot"
+					text1 = "{}:{}".format(key ,robot_requirement0) 
+				if i == 'Picking':
+					print ('value_key0_picking',dict[key][-5:])
+					robot_requirement0 = "Wait to finish"
+					text1 = "{}:{}".format(key ,robot_requirement0)
+
+		robot_requirement_list.append(robot_requirement0)
 		print(key, robot_requirement0)
 	return(robot_requirement0, robot_requirement_list, text1)
-
 
 
 
@@ -708,8 +738,10 @@ net = cv2.dnn.readNetFromTensorflow(weightsPath, configPath)
 
 # this video is from static camera
 # cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/videos_from_orchard_picking_static_camera/orchard_dataset_static_camera_videos_bag_10.mp4')
-cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/orchard_dataset_static_camera_videos_bag_9.mp4')
+# cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/orchard_dataset_static_camera_videos_bag_9.mp4')
 # cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/picking2.mp4')
+cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/unloading_short.mp4')
+
 ret, frame = cam.read()
 #prev_frame = imutils.resize(frame, width=WIDTH)
 prev_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)

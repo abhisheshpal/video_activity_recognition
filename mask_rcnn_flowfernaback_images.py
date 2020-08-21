@@ -14,10 +14,13 @@ import imutils
 import os
 import copy
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
 from scipy.stats import mode
 from skimage import draw
 import math
+import numpy as np
+from sklearn.cluster import KMeans
+import sklearn.cluster as cluster
+from statistics import mean
 # from optical_flow_class import OpticalFlowCalculator 
 # from walk_assistance_optical_flow import OptFlow
 #import matplotlib.mlab as mlab
@@ -31,7 +34,6 @@ import math
 WIDTH = 1000   # 700
 STEP = 8    # 16    # this is important param to filter out moving pixel, bigger the better
 QUIVER = (0, 0, 255) # (255, 100, 0)  # show in RED
-
 
 ###------------Apply for getting the velocity in m/sec-----------
 
@@ -116,9 +118,121 @@ def draw_flow(img, flow, step=STEP, motion_threshold=1.):
 	flow_neg[:,:,0] += np.arange(w)
 	flow_neg[:,:,1] += np.arange(h)[:,np.newaxis]
 	warp_img = cv2.remap(img, flow_neg, None, cv2.INTER_LINEAR)
-	return vis, warp_img, fx, fy
+	return vis, warp_img, 10*fx, 10*fy
 
 
+# To get Picker_ID dictionary for various values 
+def add_element(dict, key, value):
+	if key not in dict or dict is None:
+		dict[key] = []
+		dict[key].extend([value])
+	else:
+		dict[key].extend([value])
+
+def get_means(input_list):
+    means = []
+    for i in range(len(input_list)-2):
+        three_elements = input_list[i:i+3]
+        sum_top_two = sum(three_elements) - min(three_elements)
+        means.append(sum_top_two/2.0)
+    return means
+
+
+
+# ## Fetching the values from each dict and plotting
+# new_got_list_0 = []
+# new_got_list_1 = []
+# mean_new_got_list_0 = []
+# mean_new_got_list_1 = []
+# def dict_data_analysis(dict, total_frames = 0):
+#  	# set the total no. of pickers to analyse
+#  	if total_frames >= 2:
+# 		# get a list for each key 
+# 		for k in range(len(dict.keys())):
+#  			got_list = [dict[k]]
+#  			print ('got_list', np.size(got_list))
+
+#  			# iterate over each list
+#  			if k == 0:
+# 				for i in range(len(got_list)):
+#  					# check if list element is 0 or 1 (picker 1 or picker 2)
+#  					# get list of elements in 0
+#  					new_got_list_0 = got_list[0][:]
+#  					# loop over all the elements in new list
+#  					for p in range(len(new_got_list_0)):
+# 						mean_new_got_list_0.append(mean(new_got_list_0[p]))
+#  			if k == 1:
+# 				for i in range(len(got_list)):
+#  					new_got_list_1 = got_list[0][:]
+#  					for j in range(len(new_got_list_1)):
+# 						mean_new_got_list_1.append(mean(new_got_list_1[j]))
+ 					
+#  	return mean_new_got_list_0, mean_new_got_list_1
+
+
+## Fetching the values from each dict and plotting
+
+def dict_data_analysis(dict, total_frames = 0):
+	# set the total no. of pickers to analyse
+	mean_new = 0.
+	mean_new = 0.
+	new_got_list_0 = []
+	new_got_list_1 = []
+	mean_new_got_list_0 = []
+	mean_new_got_list_1 = []
+	if total_frames >= 2:
+		got_list_0 = dict[0]
+		got_list_1 = dict[1]            
+		for p in range(len(got_list_0)):
+			new_got_list_0.append(got_list_0[p])
+			mean_new_got_list_0.append(mean(got_list_0[p]))
+			mean_new = mean_new + mean(got_list_0[p])
+
+		for j in range(len(got_list_1)):
+			new_got_list_1.append(got_list_1[j])
+			mean_new_got_list_1.append(mean(got_list_1[j]))
+	return mean_new_got_list_0, mean_new_got_list_1, new_got_list_0, new_got_list_1
+
+
+# get the items from list
+get_all_list = []
+def get_list_items(list):
+	for j in range(len(list)):
+		get_all_list.append(list[j])
+	return get_all_list
+
+
+
+
+
+def count_events(Activity_dict):
+	count_events = 0
+	text1 = None
+	robot_requirement = None
+	for key, value in Activity_dict.items():
+		list1= []
+		# checking keys 
+		for key in range(0, 1):
+			# if there is sufficient picking operation frames collected
+			if len(value) > 10:
+				# Check for the last 8 or 10 elements a list of activity
+				for i in value[-8:]:
+					list1.append(i)
+				# check if all the elements of activity list is same as 'Not Picking'
+				if list1[1:] == 'Not Picking' and list1[:-1] == 'Not Picking': 
+					# if true then call a robot                           
+					robot_requirement = "Call a Robot"
+					text1 = "{} {}".format(key, robot_requirement)
+				# check if all the elements of activity list is same as 'Picking'
+				if list1[1:] == 'Picking' and list1[:-1] == 'Picking':
+					# if true then wait for calling a robot                           
+					robot_requirement = "Waiting to finish"
+					text1 = "{} {}".format(key, robot_requirement)
+				#print (text1)
+
+	return(text1, robot_requirement)
+
+		
 
 # def dissimilarity_dist(res_vel, angle):
 # 	for i, j in zip(res_vel, angle):
@@ -148,19 +262,17 @@ def draw_flow(img, flow, step=STEP, motion_threshold=1.):
 ## calculate theta 
 def cal_theta(vx, vy):
     
-	fig, axs = plt.subplots(2)
-	fig.suptitle('histogram showing horizontal and vertical flow of each pixel')
-	axs[0].hist(vx, bins = 10)
-	axs[1].hist(vy, bins = 10)
-	plt.show()
+# 	fig, axs = plt.subplots(2)
+# 	fig.suptitle('histogram showing horizontal and vertical flow of each pixel')
+# 	axs[0].hist(vx, bins = 10)
+# 	axs[1].hist(vy, bins = 10)
+# 	plt.show()
     
 # 	mean_vx = np.mean(vx) # can be used later 
 # 	mean_vy = np.mean(vy)
 
     # calculate the magnitude of horizontal and vertical flow
 	res_velocity = np.sqrt(vx**2 + vy**2)  ## If theta is negative it means the motion is inhibitory else excitatory
-	print('res_velocity', type(res_velocity))
-    
     # Method 1 to calculate theta 
     # here we will cal arctan()
 	if vx.all() > 0 and vy.all() >= 0:
@@ -214,10 +326,154 @@ def evaluation_mat(cluster):
 
 	return R, mean_abs_diff, std_dev #, count_fetaures
 
+###=====================================================
+# -------------  Comparing clustering methods 
+## https://hdbscan.readthedocs.io/en/latest/comparing_clustering_algorithms.html
+###======================================================
+# import seaborn as sns
+# # %matplotlib inline
+# def plot_clusters(data, algorithm, args, kwds):
+# 	sns.set_context('poster')
+# 	sns.set_color_codes()
+# 	#plot_kwds = {'alpha' : 0.25, 's' : 80} #, 'linewidths':0.3}
+# 	#data = resultant_velocity
+# 	if len(data) != 0 or data.all() != float(data.all()):
+# 		data = data.reshape(-1, 1)
+# 		#plt.plot(data, '*', linewidth=0.3, markersize=1) #, c='b') #, **plot_kwds)
+# 		plt.scatter(data, np.arange(len(data)),s = 80,c = 'y', marker = 's')
+# 		frame = plt.gca()
+# 		frame.axes.get_xaxis().set_visible(False)
+# 		frame.axes.get_yaxis().set_visible(False)
+# 		start_time = time.time()
+# 	    
+# 	    #Compute cluster centers and predict cluster index for each sample.
+# 		labels = algorithm(*args, **kwds).fit_predict(data)
+# 		end_time = time.time()
+# 		colors = ['r' if x == 1 else 'g' for x in labels]
+# 		#plt.plot(data, '*', linewidth=0.3, markersize=1) #, c=colors, **plot_kwds)
+# 		plt.scatter(data, np.arange(len(data)), s = 80, c = colors , marker = 's')
+
+# 		frame = plt.gca()
+# 		frame.axes.get_xaxis().set_visible(False)
+# 		frame.axes.get_yaxis().set_visible(False)
+# 		plt.title('Clusters found by {}'.format(str(algorithm.__name__)), fontsize=24)
+# 		plt.text(-0.5, 0.5, 'Clustering took {:.2f} s'.format(end_time - start_time), fontsize=10)
+
+# 		# Now separate the data, Note the flatten()
+# 		clust_mag_1 = data[labels.ravel()==0]
+# 		clust_mag_2 = data[labels.ravel()==1]
+
+# 		## Calculate mean of each cluster 
+# 		mean_clust_mag_1 = np.mean(clust_mag_1)
+# 		mean_clust_mag_2 = np.mean(clust_mag_2)
+
+# 	# 	# Plot the data
+# # 		plt.plot(clust_mag_1, '*', linewidth=0.3, markersize=1)
+# 		#plt.show()
+# # 		plt.plot(clust_mag_2, '*', linewidth=0.3, markersize=1)
+# 		#plt.show()
+# 		plt.plot(mean_clust_mag_1, '*', linewidth=0.3, markersize=1)
+# 		#plt.show()
+# 		plt.plot(mean_clust_mag_2, '*', linewidth=0.3, markersize=1)
+# 		#plt.show()
+
+# 	# 	figure, axes = plt.subplots(nrows=2, ncols=1)
+# 	    
+# 	# 	axes[0, 0].plot(mean_clust_mag_2, '*', linewidth=0.3, markersize=1)
+# 	# 	axes[0, 0].set_xlabel('feature points');
+# 	# 	axes[0, 0].set_ylabel('angle in degree');
+# 	# 	axes[0, 0].set_title('Cluster 2 of angle of flow')
+
+# 	# 	axes[1, 0].plot(mean_clust_mag_1, '*', linewidth=0.3, markersize=1)
+# 	# 	axes[1, 0].set_xlabel('feature points');
+# 	# 	axes[1, 0].set_ylabel('angle in degree');
+# 	# 	axes[1, 0].set_title('Cluster 1 of angle of flow')
+
+
+
+# 		#plt.plot(vx_flow_roi, '-', linewidth=0.3, markersize=1)
+# 		#plt.scatter(centers[:,0],centers[:,0],s = 80,c = 'y', marker = 's')
+# 		#plt.xlabel('X'),plt.ylabel('Y')
+# 		#figure.tight_layout()
+# 		plt.show(block=True)    
+
+# 	return clust_mag_1, clust_mag_2, mean_clust_mag_1, mean_clust_mag_2, labels
+
+
+# ###=====================================================
+# #------------K-Means method
+# ##=====================================================
+# def k_means_method(mag):
+ 	
+#  	# for mag cluster
+#  	kmeans = KMeans(n_clusters=3).fit(mag)
+#  	kmean_sklearn_distances_mag = np.column_stack([np.sum((mag - center)**2, axis=1)**0.5 for center in kmeans.cluster_centers_])
+#  	print ('kmean_sklearn_distances_mag', kmean_sklearn_distances_mag)
+
+#  	# Using numpy based k-mean clustering method                
+#  	# Define criteria = ( type, max_iter = 10 , epsilon = 1.0 )
+#  	criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+#  	# Set flags (Just to avoid line break in the code)
+#  	flags = cv2.KMEANS_RANDOM_CENTERS
+#  	# Apply KMeans
+#  	compactness,labels,centers = cv2.kmeans(mag,2,None,criteria,10,flags)
+
+#  	#print ('labels', cv2.kmeans.labels)
+#  	# Now separate the data, Note the flatten()
+#  	clust_mag_1 = mag[labels.ravel()==0]
+#  	clust_mag_2 = mag[labels.ravel()==1]
+#  	clust_mag_3 = mag[labels.ravel()==2]
+     
+#  	## Calculate mean of each cluster 
+#  	mean_clust_mag_1 = np.mean(clust_mag_1)
+#  	mean_clust_mag_2 = np.mean(clust_mag_2)
+#  	mean_clust_mag_3 = np.mean(clust_mag_3)
+#  	# evaluation of each cluster
+#  	err_clust_mag_1 = evaluation_mat(clust_mag_1)
+#  	err_clust_mag_2 = evaluation_mat(clust_mag_2)
+#  	err_clust_mag_3 = evaluation_mat(clust_mag_3)
+     
+
+#  	# Plot the data
+#  	figure, axes = plt.subplots(nrows=2, ncols=2)
+#  	axes[0, 0].plot(clust_mag_1, '*', linewidth=0.3, markersize=1)
+#  	axes[0, 0].set_xlabel('feature points');
+#  	axes[0, 0].set_ylabel('vector displacement in pixel');
+#  	axes[0, 0].set_title('Cluster 1 of mag of flow')
+
+#  	axes[0, 1].plot(clust_mag_2, '*', linewidth=0.3, markersize=1)
+#  	axes[0, 1].set_xlabel('feature points');
+#  	axes[0, 1].set_ylabel('vector displacement in pixel');
+#  	axes[0, 1].set_title('Cluster 2 of mag of flow')
+
+
+#  	axes[1, 0].plot(clust_mag_3, '*', linewidth=0.3, markersize=1)
+#  	axes[1, 0].set_xlabel('feature points');
+#  	axes[1, 0].set_ylabel('vector displacement in pixel');
+#  	axes[1, 0].set_title('Cluster 3 of mag of flow')
+
+#  	axes[1, 1].plot(mean_clust_mag_2, '*', linewidth=0.3, markersize=1)
+#  	axes[1, 1].set_xlabel('feature points');
+#  	axes[1, 1].set_ylabel('angle in degree');
+#  	axes[1, 1].set_title('Cluster 2 of angle of flow')
+
+#  	#plt.plot(vx_flow_roi, '-', linewidth=0.3, markersize=1)
+#  	#plt.scatter(centers[:,0],centers[:,0],s = 80,c = 'y', marker = 's')
+#  	#plt.xlabel('X'),plt.ylabel('Y')
+#  	figure.tight_layout()
+#  	plt.show(block=True)
+#  	return mean_clust_mag_1, mean_clust_mag_2, mean_clust_mag_3, err_clust_mag_1,err_clust_mag_2, err_clust_mag_3 
+
+
+
+
+
+
+
 ####========================================================
 ## ------------ Below applying HOOF method and HOG method
 ###============================================================
-from scipy.ndimage import uniform_filter
+# from scipy.ndimage import uniform_filter
 # from skimage.feature import hog
 
 
@@ -537,14 +793,10 @@ configPath = os.path.sep.join([args["mask_rcnn"],
 print("[INFO] loading Mask R-CNN from disk...")
 net = cv2.dnn.readNetFromTensorflow(weightsPath, configPath)
 
-# load our input image and grab its spatial dimensions
-mags = []
-angs = np
-res_velo = []
-flow_oris = []
-
-# cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/unloading_videos/norway_orchard_unloading_2.mp4')
-cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/picking2.mp4')
+# this video is from static camera
+cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/videos_from_orchard_picking_static_camera/orchard_dataset_static_camera_videos_bag_10.mp4')
+# cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/orchard_dataset_static_camera_videos_bag_9.mp4')
+# cam = cv2.VideoCapture('/home/abhishesh01/video_segmentation/workforJUNE2020/mask-rcnn_for_postprocessing/videos/picking2.mp4')
 ret, frame = cam.read()
 #prev_frame = imutils.resize(frame, width=WIDTH)
 prev_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -559,9 +811,39 @@ print ('prev_frame_shape', np.shape(prev_frame))
 
 
 ###---END Idea
+
 count = 0
+ret_count = 0
 writer = None
-#writer2 = None
+total_pickers = 0
+Activity_count = {}
+add_objects = {}
+picker_data = {}
+mag_dict = {}
+ang_dict = {}
+res_velo_dict = {}
+acc_hor_dict = {}
+acc_ver_dict = {}
+mean_norm_vx_flow_roi_dict = {}
+mean_norm_vy_flow_roi_dict = {}
+norm_vy_flow_roi_dict = {}
+norm_vx_flow_roi_dict = {}
+flow_roi_dict = {}
+flow_oris_dict = {}
+vx_flow_roi_dict = {}
+vy_flow_roi_dict = {}
+angular_acc_dict = {}
+direction_x_dict = {}
+direction_y_dict = {}
+corr_dist_dict = {}
+res_range_dict = {}
+Activity_dict = {}
+mean_clust_flow_1_dict = {}
+mean_clust_flow_2_dict = {}
+mean_clust_res_vel_1_dict = {}
+mean_clust_res_vel_2_dict = {}
+mean_clust_flow_3_dict = {}
+mean_clust_res_vel_3_dict = {}
 
 # try to determine the total number of frames in the video file
 try:
@@ -585,14 +867,15 @@ if (cam.isOpened()== False):
   print("Error opening video stream or file")
 
 while (cam.isOpened()):
-	count +=1
-	print ('frame_count', count)
+	#count +=1
+#	print ('frame_count', count)
 
 	if ret == True:
-	#if ret == True:
 		ret, image = cam.read()
 		#image = cv2.imread(args["image"])
 		(H, W) = image.shape[:2]
+		ret_count +=1
+		print ('frame_ID', ret_count)		 
 
 		# construct a blob from the input image and then perform a forward
 		# pass of the Mask R-CNN, giving us (1) the bounding box coordinates
@@ -615,7 +898,6 @@ while (cam.isOpened()):
 			# (i.e., probability) associated with the prediction
 			classID = int(boxes[0, 0, i, 1])
 			confidence = boxes[0, 0, i, 2]
-
 			# to just get classID of person
 			if classID != 0:
 				classID = int(boxes[0, 0, 0, 1])
@@ -646,577 +928,616 @@ while (cam.isOpened()):
 				roi = clone[startY:endY, startX:endX]
 				
 
-				############---------------- Idea to know only PERSON class------------
-				#visMask = (mask * 255).astype("uint8")
-				#roi_mask = cv2.bitwise_and(roi, roi, mask=visMask)
-				#cv2.imshow('roi_mask', roi_mask)
-				#cv2.waitKey(10000)
-				#roi_mask = roi_mask.astype(int)
-				
-				#################----------END--------------------------------
+				# Control No. of detected person in the scene 
+				if i < 2: 
+					# Get picker IDs
+					print ('Picker_ID', i)
+					total_pickers += 1
+					print ('No. of Pickers detected in a operation', total_pickers)
 
-				# check to see if are going to visualize how to extract the
-				# masked region itself
-				if args["visualize"] > 0:
-					# convert the mask from a boolean to an integer mask with
-					# to values: 0 or 255, then apply the mask
+					############---------------- Idea to know only PERSON class------------
+					#visMask = (mask * 255).astype("uint8")
+					#roi_mask = cv2.bitwise_and(roi, roi, mask=visMask)
+					#cv2.imshow('roi_mask', roi_mask)
+					#cv2.waitKey(10000)
+					#roi_mask = roi_mask.astype(int)
+				
+					#################----------END--------------------------------
+						# convert the mask from a boolean to an integer mask with
+						# to values: 0 or 255, then apply the mask
 					visMask = (mask * 255).astype("uint8")
 					instance = cv2.bitwise_and(roi, roi, mask=visMask)
-					#print('segmented', instance.shape)
-					#print ('roi', roi.shape)
-					#print('mask', mask.shape)
-					# show the extracted ROI, the mask, along with the
-					# segmented instance
-					#cv2.imshow("ROI", roi)
-					#cv2.imshow("Mask", visMask)
-					#cv2.imshow("Segmented", instance)
 
-###===============================================================================================================================
+					# check to see if are going to visualize how to extract the
+					# masked region itself
+					if args["visualize"] > 0:
+						# convert the mask from a boolean to an integer mask with
+						# to values: 0 or 255, then apply the mask
+	#					visMask = (mask * 255).astype("uint8")
+	#					instance = cv2.bitwise_and(roi, roi, mask=visMask)
+						# show the extracted ROI, the mask, along with the
+						# segmented instance
+						#cv2.imshow("ROI", roi)
+						cv2.imshow("Mask", visMask)
+						#cv2.imshow("Segmented", instance)
 
-				###--- Abhishesh START - create a black frame for a ref. as prev_frame to apply optical flow in 'segmented image'
+	###===============================================================================================================================
 
-###===============================================================================================================================
+					###--- Abhishesh START - create a black frame for a ref. as prev_frame to apply optical flow in 'segmented image'
+
+	###===============================================================================================================================
 			
-				prev_visMask = (mask * 0).astype("uint8")
-				prev_instance = cv2.bitwise_and(roi, roi, mask= prev_visMask)				
-				instance = cv2.cvtColor(instance, cv2.COLOR_BGR2GRAY)
-				prev_instance = cv2.bitwise_and(roi, roi, mask= prev_visMask)
-				prev_instance = cv2.cvtColor(prev_instance, cv2.COLOR_BGR2GRAY)
-				# get the flow of roi
-# 				flow_roi = cv2.calcOpticalFlowFarneback(prev_instance, instance, flow=None, pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.5, flags=0)
-				flow_roi = cv2.calcOpticalFlowFarneback(prev_instance, instance, flow=None, pyr_scale=0.5, levels=3, winsize=25, iterations=3, poly_n=5, poly_sigma=1.5, flags=0)
-				flow_avg = np.median (flow_roi , axis =(0,1)) # [x, y]   
-				# The direction of motion 
-				move_x =  -1 * flow_avg[0] 
-				move_y =  -1 * flow_avg[1] 
-                
-#               to normalize flow to coap up with intensity 
-# 				flow_roi = np.sqrt(flow_roi)
+					prev_visMask = (mask * 0).astype("uint8")
+					prev_instance = cv2.bitwise_and(roi, roi, mask= prev_visMask)				
+					instance = cv2.cvtColor(instance, cv2.COLOR_BGR2GRAY)
+					prev_instance = cv2.bitwise_and(roi, roi, mask= prev_visMask)
+					prev_instance = cv2.cvtColor(prev_instance, cv2.COLOR_BGR2GRAY)
+		        		# do some prepocessing to get object sillhoutes (1) Apply cornering  
+					prev_instance = cv2.cornerHarris(prev_instance,2,3,0.04)
+		        
+					# get the flow of roi
+	# 				flow_roi = cv2.calcOpticalFlowFarneback(prev_instance, instance, flow=None, pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.5, flags=0)
+					flow_roi = cv2.calcOpticalFlowFarneback(prev_instance, instance, flow=None, pyr_scale=0.5, levels=3, winsize=25, iterations=3, poly_n=5, poly_sigma=1.5, flags=0)
+					flow_avg = np.median (flow_roi , axis =(0,1)) # [x, y]   
+					# The direction of motion 
+					move_x =  -1 * flow_avg[0] 
+					move_y =  -1 * flow_avg[1] 
+		        
+	#               to normalize flow to coap up with intensity 
+	# 				flow_roi = np.sqrt(flow_roi)
 
-				# create a depth image of the foreground detected object				
-				depth_flow = get_depthFlow(prev_instance, instance)
-				# get the overall mag and angle of the whole image at each pixel level
-				mag, ang = cv2.cartToPolar(flow_roi[..., 0], flow_roi[..., 1]) #, angleInDegrees=True)
+					# create a depth image of the foreground detected object				
+					depth_flow = get_depthFlow(prev_instance, instance)
+					# get the overall mag and angle of the whole image at each pixel level
+					mag, ang = cv2.cartToPolar(flow_roi[..., 0], flow_roi[..., 1]) #, angleInDegrees=True)
+					mag_nonzero = np.count_nonzero(mag)
+					ang_nonzero = np.count_nonzero(ang)
 
-                # Store magnitude for all the objects identified      
-# 				mags = np.vstack([mag])
-# 				angs = np.vstack([ang])
+					#  Divide the whole roi regions into definite grids to reduce the computation 
+					vis_flow_roi,vis_flow_warp, vx_flow_roi, vy_flow_roi = draw_flow(instance, flow_roi)
 
-# 				ang_dir_median = np.median(ang , axis =(0,1)) # [x, y]   
-# 				# The direction of motion
-# 				ang_x =  -1 * flow_avg[0] 
-# 				ang_y =  -1 * flow_avg[1]
+					# calculate velocity in meters/ sec
+					xsum1, ysum1,timestep1, x_velocity_meters_per_second1, y_velocity_meters_per_second1, x_average_velocity_pixels_per_second1, y_average_velocity_pixels_per_second1 = my_vel_function_draw_flow(instance, flow_roi)				
 
-                
-				#if ang.any() < 0:
-				#	ang = ang + 360
-# 				ang = ang * (2 * np.pi % 180)
+					# cal theta(for the direction of flow) and resulatant vector of the flow
+					flow_orientation, resultant_velocity = cal_theta(vx_flow_roi, vy_flow_roi)
+					time_passed = end - start
+
+	      			# calculate correlation distance 				
+					corr_dist = (resultant_velocity * flow_orientation)**2
+					res_range = np.max(resultant_velocity) - np.min(resultant_velocity)
+
+					# calculate the acceleration in horizontal and vertical direction
+					acc_hor = vx_flow_roi / time_passed
+					acc_ver = vy_flow_roi / time_passed
+					angular_acc = flow_orientation/time_passed
+		        
+					# normalize horizontal and vertical velocities
+					norm_vx_flow_roi = np.divide(vx_flow_roi, resultant_velocity, where = resultant_velocity !=0)
+					mean_norm_vx_flow_roi = np.mean(norm_vx_flow_roi)
+					norm_vy_flow_roi = np.divide(vy_flow_roi, resultant_velocity, where = resultant_velocity !=0)
+					mean_norm_vy_flow_roi = np.mean(norm_vy_flow_roi)
+
+		        # create HOG
+	# 				HOG = hog2image(vis_flow_roi, imageSize=[32,32],orientations=9,pixels_per_cell=(8, 8),cells_per_block=(3, 3)) 
+	# 				cv2.imshow('HOG_image', HOG)
+					# create HOOF 				
+	# 				normalised, HOF_image = hof(flow_roi, orientations=12, pixels_per_cell=(8, 8), cells_per_block=(3, 3), visualise=True, normalise=False, motion_threshold=1.)
+	# 				cv2.imshow('HOF_image', HOF_image)                
+
+		        
+	###=================================================================================================
 				
-				mag_nonzero = np.count_nonzero(mag)
-				ang_nonzero = np.count_nonzero(ang)
+	# The idea is to devide the optical flow into n-grids (using draw_flow) and calculate :-
+		        
+	###========== METHOD 1:  Segmentation using HOOF of theta and Weight velocity method : In this method ================
+		        
+		        
+					## cal HOOF of theta	
+					bins_number = 12  # the [0, 360) interval will be subdivided into this
 
-				if (np.sum(mag)> 600):
-					print('motion detected')
+	###----------------------------------------------------------
+	# 				# get the mag falls withing angular range 				
 
-				if np.max(np.median(mag)) > 20 and np.max(np.median(ang)) > 39:
-					print ("***the event might be picking***")
-				else:
-					print ("***the event might be unloading***") 
-				# store mag and angle for next frames 
-# 				if mag>0:
-#                 		store_mag = []
-# 				store_mag = store_mag.append(mag)
-# 				print ("store_mag", store_mag)               
-                
-				#  Divide the whole roi regions into definite grids to reduce the computation 
-				vis_flow_roi,vis_flow_warp, vx_flow_roi, vy_flow_roi = draw_flow(instance, flow_roi)
-				# calculate velocity in meters/ sec
-				xsum1, ysum1,timestep1, x_velocity_meters_per_second1, y_velocity_meters_per_second1, x_average_velocity_pixels_per_second1, y_average_velocity_pixels_per_second1 = my_vel_function_draw_flow(instance, flow_roi)				
-				# cal theta(for the direction of flow) and resulatant vector of the flow
-				flow_orientation, resultant_velocity = cal_theta(vx_flow_roi, vy_flow_roi)
-				time_passed = end - start
-				acc_hor = vx_flow_roi / time_passed
-				acc_ver = vy_flow_roi / time_passed
+					motion_threshold = 1.
+	# 				for i in range(bins_number-1):
+	# 					#create new integral image for this orientation
+	# 					# isolate orientations in this range
+
+	# 					temp_ori = np.where(flow_orientation < 180 / bins_number * (i + 1),
+	# 					flow_orientation, -1)
+	# 					temp_ori = np.where(flow_orientation >= 180 / bins_number * i,
+	# 					temp_ori, -1)
+	# 					# select magnitudes for those orientations
+	# 					cond2 = (temp_ori > -1) * (resultant_velocity > motion_threshold)
+	# 					temp_mag = np.where(cond2, resultant_velocity, 0)
+	# 				''' Calculate the no-motion bin '''
+	# 				temp_mag = np.where(resultant_velocity <= motion_threshold, resultant_velocity, 0)
+	# # 				if temp_mag  
+	# 				plt.hist(temp_mag)
+	# 				plt.show()
+	# 				plt.hist(temp_ori)
+	# 				plt.show()
+
+
+	# 				# number of equal bins
+	# 				bins = np.linspace(0.0, 2 * np.pi, bins_number+1)
+	# 				n, _, _ = plt.hist(temp_ori, bins)
+	# 				bin_counts = np.unique(bins)
+	# 				plt.clf()
+	# 				width = 2 * np.pi / bins_number
+	# 				colors = plt.cm.viridis(n/10.)
+	# 				ax = plt.subplot(1, 1, 1, projection='polar')
+	# 				bars = ax.bar(bins[:bins_number], n, width=width, bottom=0.0, color= colors)
+	# # 				ax.set_ylim(0, 10)
+	# 				ax.set_rlabel_position(270)
+	# # 				print ('bins[:bins_number]', t )#bins[:bins_number])
+	# 				for bar in bars:
+	# 					bar.set_alpha(0.5)
+	# 				plt.title("direction plot")
+	# 				plt.show() 
+	#----------------------------------------------------------------------
+
+
+	# 				# number of equal bins in a frame
+	# 				bins = np.linspace(0.0, 2 * np.pi, bins_number+1)
+	# 				for v in flow_oris.items():
+	# 					n, _, _ = plt.hist(v, bins)
+	# 					print ('v', v)
+	# 					bin_counts = np.unique(bins)
+	# 					plt.clf()
+	# 					width = 2 * np.pi / bins_number
+	# 					#colors = plt.cm.viridis(n/2.)
+	# 					ax = plt.subplot(1, 1, 1, projection='polar')
+	# 					bars = ax.bar(bins[:bins_number], n, width=width, bottom=0.0) #, color= colors)
+	# 					# 				ax.set_ylim(0, 10)
+	# 					ax.set_rlabel_position(270)
+	# 					# 				print ('bins[:bins_number]', t )#bins[:bins_number])
+	# 					for bar in bars:
+	# 						bar.set_alpha(0.5)
+	# 					plt.title(" total_frames_direction_plot")
+	# 				plt.show() 
+
+
+
+					# number of equal bins in a frame
+					bins = np.linspace(0.0, 2 * np.pi, bins_number+1)
+					n, _, _ = plt.hist(flow_orientation, bins)
+					bin_counts = np.unique(bins)
+					plt.clf()
+					width = 2 * np.pi / bins_number
+					colors = plt.cm.viridis(n/10.)
+					ax = plt.subplot(1, 1, 1, projection='polar')
+					bars = ax.bar(bins[:bins_number], n, width=width, bottom=0.0, color= colors)
+	# 				ax.set_ylim(0, 10)
+					ax.set_rlabel_position(270)
+	# 				print ('bins[:bins_number]', t )#bins[:bins_number])
+					for bar in bars:
+						bar.set_alpha(0.5)
+					plt.title("direction plot")
+					plt.show() 
 				
-				# Store orientation and res_vel of several frames here
-#				flow_oris = np.vstack([flow_orientation])
-#				res_velo  = np.vstack([resultant_velocity])
-				# Store orientation and res_vel of several frames here
-				#f = np.vstack([flow_orientation])
-				#r = np.vstack([resultant_velocity])
-				#f = None
-				# Store orientation and res_vel of several frames here
-				#if f is not None:
-				f = np.vstack([flow_orientation])
-				print ('shape of f', np.shape(f))
-				#r = np.vstack([resultant_velocity])
-				#else:
-				#f = flow_orientation
-
-#       		          # create HOG
-# 				HOG = hog2image(vis_flow_roi, imageSize=[32,32],orientations=9,pixels_per_cell=(8, 8),cells_per_block=(3, 3)) 
-# 				cv2.imshow('HOG_image', HOG)
-				# create HOOF 				
-# 				normalised, HOF_image = hof(flow_roi, orientations=12, pixels_per_cell=(8, 8), cells_per_block=(3, 3), visualise=True, normalise=False, motion_threshold=1.)
-# 				cv2.imshow('HOF_image', HOF_image)                
-
-				# get the no. of features in each bins ro get the median 
-				median_ang = np.median(flow_orientation)
-                
-  		###=================================================================================================
-				
-                # The idea is to devide the optical flow into n-grids (using draw_flow) and calculate :-
-                
-                # METHOD 1:  Segmentation using HOOF of theta and Weight velocity method : In this method 
-                    
-                                
-               ###==================================================================================================
-                
-                
-				## cal HOOF of theta	
-				bins_number = 12  # the [0, 360) interval will be subdivided into this
-
-###----------------------------------------------------------
-# 				# get the mag falls withing angular range 				
-
-				motion_threshold = 1.
-# 				for i in range(bins_number-1):
-# 					#create new integral image for this orientation
-# 					# isolate orientations in this range
-
-# 					temp_ori = np.where(flow_orientation < 180 / bins_number * (i + 1),
-# 					flow_orientation, -1)
-# 					temp_ori = np.where(flow_orientation >= 180 / bins_number * i,
-# 					temp_ori, -1)
-# 					# select magnitudes for those orientations
-# 					cond2 = (temp_ori > -1) * (resultant_velocity > motion_threshold)
-# 					temp_mag = np.where(cond2, resultant_velocity, 0)
-# 				''' Calculate the no-motion bin '''
-# 				temp_mag = np.where(resultant_velocity <= motion_threshold, resultant_velocity, 0)
-# # 				if temp_mag  
-# 				plt.hist(temp_mag)
-# 				plt.show()
-# 				plt.hist(temp_ori)
-# 				plt.show()
-
-
-# 				# number of equal bins
-# 				bins = np.linspace(0.0, 2 * np.pi, bins_number+1)
-# 				n, _, _ = plt.hist(temp_ori, bins)
-# 				bin_counts = np.unique(bins)
-# 				plt.clf()
-# 				width = 2 * np.pi / bins_number
-# 				colors = plt.cm.viridis(n/10.)
-# 				ax = plt.subplot(1, 1, 1, projection='polar')
-# 				bars = ax.bar(bins[:bins_number], n, width=width, bottom=0.0, color= colors)
-# # 				ax.set_ylim(0, 10)
-# 				ax.set_rlabel_position(270)
-# # 				print ('bins[:bins_number]', t )#bins[:bins_number])
-# 				for bar in bars:
-# 					bar.set_alpha(0.5)
-# 				plt.title("direction plot")
-# 				plt.show() 
-#----------------------------------------------------------------------
-
-				# number of equal bins
-				bins = np.linspace(0.0, 2 * np.pi, bins_number+1)
-				n, _, _ = plt.hist(flow_orientation, bins)
-				bin_counts = np.unique(bins)
-				plt.clf()
-				width = 2 * np.pi / bins_number
-				colors = plt.cm.viridis(n/10.)
-				ax = plt.subplot(1, 1, 1, projection='polar')
-				bars = ax.bar(bins[:bins_number], n, width=width, bottom=0.0, color= colors)
-# 				ax.set_ylim(0, 10)
-				ax.set_rlabel_position(270)
-# 				print ('bins[:bins_number]', t )#bins[:bins_number])
-				for bar in bars:
-					bar.set_alpha(0.5)
-				plt.title("direction plot")
-				plt.show() 
-				
-				# get mean of angular orientation 
-				mean_ang = np.mean(flow_orientation)
-				# get the horizontal resultant velocity					
-				hor_vx = np.abs(resultant_velocity*np.cos(flow_orientation))
-				hor_vx_mean = np.mean(hor_vx)
-
-				ver_vy = np.abs(resultant_velocity*np.sin(flow_orientation))
-				ver_vy_mean = np.mean(ver_vy)
-				
-				res_mag = np.sqrt(hor_vx**2 + ver_vy**2)
-				diff_mean_vel = np.abs(hor_vx_mean - ver_vy_mean)
-
-
-				# Calculate Dissimilarity Distance
-# 				Dist, nu , den = dissimilarity_dist(resultant_velocity, flow_orientation)
-                
-          			# calculate correlation distance 				
-				corr_dist = (resultant_velocity * flow_orientation)**2
-
 								
-				##-----------------------------
-				## cal actual orientation of the moving object
-				alpha_hor = np.arccos((vx_flow_roi *resultant_velocity)/(np.abs(vx_flow_roi)) * (np.abs(resultant_velocity)))/np.size(resultant_velocity)
-				alpha_hor = (alpha_hor) * 180 / np.pi % 180
-				bins_number = 12  # the [0, 360) interval will be subdivided into this
-				# number of equal bins
-				bins = np.linspace(0.0, 2 * np.pi, bins_number+1)
-				n, t, _ = plt.hist(alpha_hor, bins)
-				bin_counts = np.unique(bins)
-				plt.clf()
-				width = 2 * np.pi / bins_number
-				colors = plt.cm.viridis(n/10.)
-				ax = plt.subplot(1, 1, 1, projection='polar')
-				bars = ax.bar(bins[:bins_number], n, width=width, bottom=0.0, color= colors)
-# 				ax.set_ylim(0, 10)
-				ax.set_rlabel_position(270)
-# 				print ('bins[:bins_number]', t )#bins[:bins_number])
-				for bar in bars:
-					bar.set_alpha(0.5)
-				plt.title("direction_hor plot")
-				plt.show() 
-				##-----------------------------
-                
-                ### ---- Set criteria for classifying the activity------------
-                
-				if ver_vy_mean > 0 or ver_vy_mean < -0.001 or mean_ang > 60 or np.mean(res_mag) > 2 or resultant_velocity.any() >= 2:
-# 				if (np.abs(ver_vy_mean) > 0.01 and (mean_ang > 60 or np.mean(res_mag) > 2)) and (np.abs(ver_vy_mean = 0 and mean_ang = 0 and np.mean(res_mag) > 2.5):# and resultant_velocity.any() >= 2:
-					print ("----process is unloading----")
-					print ("ver_vy_mean", ver_vy_mean)
-# 					print ("resultant_velocity", resultant_velocity.any())
-					print ("mean_orientation", mean_ang)
-					print ("magnitide of res_velocities", np.mean(res_mag))
-                # elif # and resultant_velocity.any() >= 2:
+# 					##-----------------------------
+# 					## cal actual orientation of the moving object
+# 					alpha_hor = np.arccos((vx_flow_roi *resultant_velocity)/(np.abs(vx_flow_roi)) * (np.abs(resultant_velocity)))/np.size(resultant_velocity)
+# 					alpha_hor = (alpha_hor) * 180 / np.pi % 180
+# 					bins_number = 12  # the [0, 360) interval will be subdivided into this
+# 					# number of equal bins
+# 					bins = np.linspace(0.0, 2 * np.pi, bins_number+1)
+# 					n, t, _ = plt.hist(alpha_hor, bins)
+# 					bin_counts = np.unique(bins)
+# 					plt.clf()
+# 					width = 2 * np.pi / bins_number
+# 					colors = plt.cm.viridis(n/10.)
+# 					ax = plt.subplot(1, 1, 1, projection='polar')
+# 					bars = ax.bar(bins[:bins_number], n, width=width, bottom=0.0, color= colors)
+# 	# 				ax.set_ylim(0, 10)
+# 					ax.set_rlabel_position(270)
+# 	# 				print ('bins[:bins_number]', t )#bins[:bins_number])
+# 					for bar in bars:
+# 						bar.set_alpha(0.5)
+# 					plt.title("direction_hor plot")
+# 					plt.show() 
+					##-----------------------------
+		        
+		        ## ======================================================
+		        ## ---- Setting up criteria for classifying the activities------------
+		        #------ CRITERIA 1: At Collection of Frame level----------------
+		        
+					# create dictionary to store data for each key (picker_ID)
+					add_element(res_velo_dict, i, resultant_velocity)
+					add_element(mag_dict, i, mag)
+					add_element(ang_dict, i, ang)
+					add_element(acc_hor_dict, i, acc_hor)
+					add_element(acc_ver_dict, i, acc_ver)
+					add_element(mean_norm_vx_flow_roi_dict, i, mean_norm_vx_flow_roi)
+					add_element(mean_norm_vy_flow_roi_dict, i, mean_norm_vy_flow_roi)
+					add_element(norm_vy_flow_roi_dict, i, norm_vy_flow_roi)                
+					add_element(norm_vx_flow_roi_dict, i, norm_vx_flow_roi)                
+					add_element(flow_roi_dict, i, flow_roi)
+					add_element(flow_oris_dict, i, flow_orientation)                
+					add_element(vx_flow_roi_dict, i, vx_flow_roi)                
+					add_element(vy_flow_roi_dict, i, vy_flow_roi)                
+					add_element(angular_acc_dict, i, angular_acc)  
+					add_element(direction_x_dict, i, move_x)  
+					add_element(direction_y_dict, i, move_y)  
+					add_element(corr_dist_dict, i, corr_dist)  
+					add_element(res_range_dict, i, res_range)  
+
+
+
+					## Analysis using dictionary values
+# 					mean_res_vel_picker0, mean_res_vel_picker1, res_vel_picker0, res_vel_picker1 = dict_data_analysis(res_velo_dict, total_frames=total_pickers)
+# 					plt.plot(mean_res_vel_picker0, label = 'Picker 0')
+# 					plt.plot(mean_res_vel_picker1, label = 'Picker 1')    
+# 					plt.xlabel('No. of frames')
+# 					plt.ylabel('Mean value')
+# 					plt.legend(loc="upper left")
+# 					plt.title("Frames analysis for mean_res_vel")
+# 					plt.legend()
+# 					plt.show()
+
+# 					mean_flow_picker0, mean_flow_picker1 , flow_picker0 , flow_picker1 = dict_data_analysis(flow_oris_dict, total_frames=total_pickers)
+# 					plt.plot(mean_flow_picker0, label = 'Picker 0')
+# 					plt.plot(mean_flow_picker1, label = 'Picker 1')    
+# 					plt.xlabel('No. of frames')
+# 					plt.ylabel('Mean value')
+# 					plt.legend(loc="upper left")
+# 					plt.title("Frames analysis for mean_flow")
+# 					plt.legend()
+# 					plt.show()  
                     
-				else:
-					print ("----process is picking----")
-					print ("ver_vy_mean", ver_vy_mean)
-# 					print ("resultant_velocity", resultant_velocity.any())
-					print ("mean_orientation", mean_ang)
-					print ("magnitide of res_velocities", np.mean(res_mag))
-					
-				figure, axes = plt.subplots(nrows=2, ncols=2)
-				axes[0, 0].plot(hor_vx, '-', linewidth=0.3, markersize=1)
-				axes[0, 0].set_xlabel('feature points');
-				axes[0, 0].set_ylabel('velocity(pixel/hz');
-				axes[0, 0].set_title('hor_res_vx velocity of flow')
-
-				axes[0, 1].plot(vx_flow_roi, '-', linewidth=0.3, markersize=1)
-				axes[0, 1].set_xlabel('feature points');
-				axes[0, 1].set_ylabel('velocity(pixel/hz');
-				axes[0, 1].set_title('vx velocity of flow')
-
-				axes[1, 0].plot(ver_vy, '-', linewidth=0.3, markersize=1)
-				axes[1, 0].set_xlabel('feature points');
-				axes[1, 0].set_ylabel('velocity(pixel/hz');
-				axes[1, 0].set_title('ver_res_vy velocity of flow')
+                    
+					mean_vx_picker0, mean_vx_picker1, _, _ = dict_data_analysis(vx_flow_roi_dict, total_frames=total_pickers)
+					plt.plot(mean_vx_picker0, label = 'Picker 0')
+					plt.plot(mean_vx_picker1, label = 'Picker 1')    
+					plt.xlabel('No. of frames')
+					plt.ylabel('Mean value')
+					plt.legend(loc="upper left")
+					plt.title("Frames analysis for vx_flow_roi")
+					plt.legend()
+					plt.show()  
 
 
-				axes[1, 1].plot(vy_flow_roi, '-', linewidth=0.3, markersize=1)
-				axes[1, 1].set_xlabel('feature points');
-				axes[1, 1].set_ylabel('velocity(pixel/hz');
-				axes[1, 1].set_title('vx velocity of flow')
-
-				figure, axes = plt.subplots(nrows=2) #, ncols=0)
-				axes[0].plot(resultant_velocity, '-', linewidth=0.3, markersize=1)
-				axes[0].set_xlabel('feature points');
-				axes[0].set_ylabel('velocity(pixel/hz');
-				axes[0].set_title('res_velocity velocity of flow')
-
-				axes[1].plot(flow_orientation, '-', linewidth=0.3, markersize=1)
-				axes[1].set_xlabel('feature points');
-				axes[1].set_ylabel('Angle');
-				axes[1].set_title('Angular orientation of motion of the flow')
-
-                
-# 				print('D has data', len(D))
-				## create a gaussian mixture model 
-# 				plt.plot(D, '*') #, linewidth=0.3, markersize=1)
-# 				#plt.plot(D[:,0], D[:,1], 'bx')
-# 				plt.axis('equal')
-# 				plt.show()
-# 				plt.scatter(D)
-# 				plt.show()
-
-# 				gmm = GaussianMixture(n_components=2)
-# 				gmm.fit(D)
-
-# 				print('gmm.means_', gmm.means_)
-# 				#print('\n')
-# 				print('gmm.covariances_', gmm.covariances_)
-
-# 				X, Y = np.meshgrid(np.linspace(-1, 8), np.linspace(-1,8))
-# 				XX = np.array([X.ravel(), Y.ravel()]).T
-# 				Z = gmm.score_samples(XX)
-# 				Z = Z.reshape((50,50))
-# 				plt.contour(X, Y, Z)
-# 				plt.scatter(D)
-# 				plt.show()
+					mean_vy_picker0, mean_vy_picker1, _, _ = dict_data_analysis(vy_flow_roi_dict, total_frames=total_pickers)
+					plt.plot(mean_vy_picker0, label = 'Picker 0')
+					plt.plot(mean_vy_picker1, label = 'Picker 1')    
+					plt.xlabel('No. of frames')
+					plt.ylabel('Mean value')
+					plt.legend(loc="upper left")
+					plt.title("Frames analysis for vy_flow_roi")
+					plt.legend()
+					plt.show()  
 
 
+# 					# number of equal bins in a frame
+# 					bins = 6
+                    
+# 					bins = np.linspace(0.0, 2 * np.pi, bins_number+1)
+# 					n, _, _ = plt.hist(mean_flow_picker0, bins)
+# 					bin_counts = np.unique(bins)
+# 					plt.clf()
+# 					width = 2 * np.pi / bins_number
+# 					colors = plt.cm.viridis(n/10.)
+# 					ax = plt.subplot(1, 1, 1, projection='polar')
+# 					bars = ax.bar(bins[:bins_number], n, width=width, bottom=0.0, color= colors)
+# 	# 				ax.set_ylim(0, 10)
+# 					ax.set_rlabel_position(270)
+# 	# 				print ('bins[:bins_number]', t )#bins[:bins_number])
+# 					for bar in bars:
+# 						bar.set_alpha(0.5)
+# 					plt.title("direction plot")
+# 					plt.show() 
+# 				
 
-  				###=================================================================================================
+# 					# number of equal bins in a frame
+# 					bins = np.linspace(0.0, 2 * np.pi, bins_number+1)
+# 					n, _, _ = plt.hist(mean_flow_picker1, bins)
+# 					bin_counts = np.unique(bins)
+# 					plt.clf()
+# 					width = 2 * np.pi / bins_number
+# 					colors = plt.cm.viridis(n/10.)
+# 					ax = plt.subplot(1, 1, 1, projection='polar')
+# 					bars = ax.bar(bins[:bins_number], n, width=width, bottom=0.0, color= colors)
+# 	# 				ax.set_ylim(0, 10)
+# 					ax.set_rlabel_position(270)
+# 	# 				print ('bins[:bins_number]', t )#bins[:bins_number])
+# 					for bar in bars:
+# 						bar.set_alpha(0.5)
+# 					plt.title("direction plot")
+# 					plt.show() 
+		        
+		        # ------------CRITERIA 2:  At Single Frame level -------------------------
+
+					# Calculate Dissimilarity Distance
+	# 				Dist, nu , den = dissimilarity_dist(resultant_velocity, flow_orientation)
+		        
+					# check if there is anomaly object detected
+					if res_range > 100 or (np.min(flow_orientation) <= 10 and np.max(flow_orientation) >= 176):
+						Activity = 'Not Picking'
+						Activity_count = {Activity: 0}
+
+						add_element(Activity_dict, i, Activity)
+					else:
+						Activity = 'Picking'
+						Activity_count = {Activity: 1}
+						add_element(Activity_dict, i, Activity)  
+			
+
+					# Check the Picking direction 
+					if move_x > 0 and (np.max(flow_orientation) in range(176, 180) or flow_orientation is None):
+						Direction = "Moving Backward"
+					else:
+						Direction = "Moving Forward"
 				
-                # METHOD 2:  Segmentation using HOG  : In this method a separate m-bins histogram of angle strenght and magnitude strenght
-                # is create.  
-                
-                # 
-               ###==================================================================================================
+					# If need a robot or not 
+					if move_x > 0 and (np.max(flow_orientation) in range(176, 180) or flow_orientation is None):
+						Direction = "Moving Backward"
+					else:
+						Direction = "Moving Forward"
+		            
+					figure, axes = plt.subplots(nrows=2)
+					axes[0].plot(vx_flow_roi, '-', linewidth=0.3, markersize=0.5)
+					axes[0].set_xlabel('feature points');
+					axes[0].set_ylabel('velocity(pixel/hz');
+					axes[0].set_title('vx velocity of flow')
+
+					axes[1].plot(vy_flow_roi, '-', linewidth=0.3, markersize=0.5)
+					axes[1].set_xlabel('feature points');
+					axes[1].set_ylabel('velocity(pixel/hz');
+					axes[1].set_title('vx velocity of flow')
+
+					figure, axes = plt.subplots(nrows=2) #, ncols=0)
+					axes[0].plot(resultant_velocity, '-', linewidth=0.3, markersize=0.5)
+					axes[0].set_xlabel('feature points');
+					axes[0].set_ylabel('velocity(pixel/hz');
+					axes[0].set_title('res_velocity velocity of flow')
+
+					axes[1].plot(flow_orientation, '-', linewidth=0.3, markersize=0.5)
+					axes[1].set_xlabel('feature points');
+					axes[1].set_ylabel('Angle');
+					axes[1].set_title('Angular orientation of motion of the flow')
+
+		        
+	  		##=================================================================================================
+				
+		        # METHOD 2:  Segmentation using HOG  : In this method a separate m-bins histogram of angle strenght and magnitude strenght
+		        # is create.  
+		        
+		        # 
+		        ##==================================================================================================
 
 
 	
-				###=================================================================================================
+			##=================================================================================================
 				
-                # METHOD 2: Segmentation using K-mean clustering 
+		        # METHOD 2: Segmentation using K-mean clustering 
+		        
+		        # Apply K-mean clustering on res_vel_roi and flow_orientation to identify valid and unvalid values
+		        # Use sklearn clustering method
                 
-                # Apply K-mean clustering on res_vel_roi and flow_orientation to identify valid and unvalid values
-                # Use sklearn clustering method
-                                
-               ###==================================================================================================
-				
-                # for angular cluster 
-				kmeans = KMeans(n_clusters=2).fit(ang)
-				kmean_sklearn_distances_ang = np.column_stack([np.sum((ang - center)**2, axis=1)**0.5 for center in kmeans.cluster_centers_])
-				# for mag cluster
-				kmeans = KMeans(n_clusters=2).fit(mag)
-				kmean_sklearn_distances_mag = np.column_stack([np.sum((mag - center)**2, axis=1)**0.5 for center in kmeans.cluster_centers_])
+		            # this is First function for K-means             
+# 					clust_flow_1, clust_flow_2, mean_clust_flow_1, mean_clust_flow_2, labels_flow = plot_clusters(flow_orientation, cluster.KMeans, (), {'n_clusters':2})
+# 					clust_res_vel_1, clust_res_vel_2, mean_clust_res_vel_1, mean_clust_res_vel_2, labels_res_vel = plot_clusters(resultant_velocity, cluster.KMeans, (), {'n_clusters':2})
+					# Error evaluation of each cluster . It returns (R, mean_abs_diff, std_dev)
+					#err_cls_flow_1 = []
+					#err_cls_flow_2 = []
+					#err_cls_flow_1 = evaluation_mat(clust_flow_1)
+					#err_cls_flow_2 = evaluation_mat(clust_flow_2)
 
-				
-				# Using numpy based k-mean clustering method                
-				# Define criteria = ( type, max_iter = 10 , epsilon = 1.0 )
-				criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
-				# Set flags (Just to avoid line break in the code)
-				flags = cv2.KMEANS_RANDOM_CENTERS
-				# Apply KMeans
-				#compactnes,label,center = cv2.kmeans(res_vel_roi,3,None,criteria,10,flags)
-				#compactnes,label,center = cv2.kmeans(res_vel_roi_warp,3,None,criteria,10,flags)
-				compactnes,label,center = cv2.kmeans(ang,2,None,criteria,10,flags)
-				compactness,labels,centers = cv2.kmeans(mag,2,None,criteria,10,flags)
-				
-				#print ('labels', cv2.kmeans.labels)
-				# Now separate the data, Note the flatten()
-				clust_mag_1 = mag[labels.ravel()==0]
-				clust_mag_2 = mag[labels.ravel()==1]
-# 				C = resultant_velocity[labels.ravel()==2]
-				#D = resultant_velocity[labels.ravel()==3]
-				#E = resultant_velocity[labels.ravel()==4]
-
-				clust_ang_1 = ang[label.ravel()==0]
-				clust_ang_2 = ang[label.ravel()==1]
-# 				Ct = flow_orientation[label.ravel()==2]
-
-				## Calculate mean of each cluster 
-				mean_clust_mag_1 = np.mean(clust_mag_1)
-				mean_clust_mag_2 = np.mean(clust_mag_2)
-				print ('mean_clust_mag_1', mean_clust_mag_1)
-				print ('mean_clust_mag_2', mean_clust_mag_2)
-
-				# evaluation of each cluster
-				err_clust_mag_1 = evaluation_mat(clust_mag_1)
-				err_clust_mag_2 = evaluation_mat(clust_mag_2)
-
-				# Plot the data
-
-
-
-				figure, axes = plt.subplots(nrows=2, ncols=2)
-				axes[0, 0].plot(clust_mag_1, '*', linewidth=0.3, markersize=1)
-				axes[0, 0].set_xlabel('feature points');
-				axes[0, 0].set_ylabel('vector displacement in pixel');
-				axes[0, 0].set_title('Cluster 1 of mag of flow')
-
-				axes[0, 1].plot(clust_mag_2, '*', linewidth=0.3, markersize=1)
-				axes[0, 1].set_xlabel('feature points');
-				axes[0, 1].set_ylabel('vector displacement in pixel');
-				axes[0, 1].set_title('Cluster 2 of mag of flow')
-
-
-				axes[1, 0].plot(clust_ang_1, '*', linewidth=0.3, markersize=1)
-				axes[1, 0].set_xlabel('feature points');
-				axes[1, 0].set_ylabel('angle in degree');
-				axes[1, 0].set_title('Cluster 1 of angle of flow')
-				
-				axes[1, 1].plot(clust_ang_2, '*', linewidth=0.3, markersize=1)
-				axes[1, 1].set_xlabel('feature points');
-				axes[1, 1].set_ylabel('angle in degree');
-				axes[1, 1].set_title('Cluster 2 of angle of flow')
-
-
-# 				axes[2, 0].plot(C, '*', linewidth=0.3, markersize=1)
-# 				axes[2, 0].set_xlabel('feature points');
-# 				axes[2, 0].set_ylabel('velocity(pixel/hz)');
-# 				axes[2, 0].set_title('Cluster C of resultant velocity of flow')
-
-# 				axes[2, 1].plot(Ct, '*', linewidth=0.3, markersize=1)
-# 				axes[2, 1].set_xlabel('feature points');
-# 				axes[2, 1].set_ylabel('velocity(pixel/hz)');
-# 				axes[2, 1].set_title('Cluster Ct of angle of flow')
-
-				#plt.plot(vx_flow_roi, '-', linewidth=0.3, markersize=1)
-				#plt.scatter(centers[:,0],centers[:,0],s = 80,c = 'y', marker = 's')
-				#plt.xlabel('X'),plt.ylabel('Y')
-				figure.tight_layout()
-				plt.show(block=True)
-
-
-				#cost_fun = np.sqrt(((vx_flow_roi)*(vx_flow_roi) + (vy_flow_roi)*(vy_flow_roi))* theta)
-				#mean_res_vel_roi = np.mean(resultant_velocity)
-				#print ('mean_res_vel_roi', mean_res_vel_roi)
-				#print ('cost_funtype', type(cost_fun))
-				#res_vel_roi = list()
-				#res_vel_roi = cost_fun
-				#print ('resultant_velocity_shape', resultant_velocity.shape)
-				#cv2.imshow('vis_flow_roi', vis_flow_roi)
-				
-                
-				#plt.plot('flow_x', vx_flow_roi[0:1], vy_flow_roi[0:])
-				#plt.show()
-				#plt.plot('flow_y', vy_flow_roi[0:1], vy_flow_roi[0:])
-				#plt.show()
-				#cv2.imshow("Non_Segmented", prev_instance)
-				#print ("Segmented", instance.shape)
-				#print ("Non_Segmented", prev_instance.shape)
-				prev_instance = instance							
-				
-				# Store orientation and res_vel of several frames here
-# 				flow_oris = np.hstack([f[i-1], f[i]])
-# 				print ('shape of fLOW_ORIS', np.shape(f))
-				#res_velo  = np.vstack([r])
-				###---------END ----------------
-
-				# now, extract *only* the masked region of the ROI by passing
-				# in the boolean mask array as our slice condition
-				roi = roi[mask]
-
-
-###=============================================================================================================
+					#clust_flow_1, clust_flow_2, mean_clust_flow_1, mean_clust_flow_2, labels_flow = plot_clusters(flow, cluster.KMeans, (), {'n_clusters':2})		          
                     
-                ####----Abhishesh START--- New idea to apply optical flow on whole frame not just on ROI ---
+                    # this is Second function for K-means             
+# 					mean_clust_res_vel_1, mean_clust_res_vel_2, mean_clust_res_vel_3, err_clust_res_vel_1, err_clust_res_vel_2, err_clust_res_vel_3 = k_means_method(resultant_velocity)
+# 					mean_clust_flow_1, mean_clust_flow_2, mean_clust_flow_3, err_clust_flow_1, err_clust_flow_2, err_clust_flow_3 = k_means_method(flow_orientation)
 
-###=================================================================================================================
 
-#----------------------- check if any event is happening in whole image---------------------- 
 
-				## Once I get the mask of ROI, lets get the optical flow of the mask in each frame and from there we can catagorise activities
-				# once we get the optical flow we can create another bounding box on the original frame with TAG : Picking / Not Picking
+#      	        # ------------METHOD 2 : K-MEANS clustering :CRITERIA :  At Single Frame level -------------------------
+# 					# flow Analysis
+# 					#add_element(clust_flow_1_dict, i, clust_flow_1)  
+# 					add_element(mean_clust_flow_1_dict, i, mean_clust_flow_1)  
+# 					#add_element(clust_flow_2_dict, i, clust_flow_2)  
+# 					add_element(mean_clust_flow_2_dict, i, mean_clust_flow_2) 
+# 					add_element(mean_clust_flow_3_dict, i, mean_clust_flow_3)  
+                    
+# # 					add_element(err_cls_flow_1_dict, i, err_cls_flow_1)  
+# 					#add_element(err_cls_flow_2_dict, i, err_cls_flow_2)  
+# 					add_element(mean_clust_res_vel_1_dict, i, mean_clust_res_vel_1)  
+# 					add_element(mean_clust_res_vel_2_dict, i, mean_clust_res_vel_2)  
+# 					add_element(mean_clust_res_vel_3_dict, i, mean_clust_res_vel_3)  
 
-				curr_frame = copy.copy(clone)
-				#curr_frame = imutils.resize(curr_frame, width=WIDTH)
-				#test_f = curr_frame.copy()
-				curr_frame = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
-				curr_frame = np.float32(curr_frame)/255.0
-				#print ('clone_frame', np.shape(clone))
-				print ('curr_frame', np.shape(curr_frame))
+					#add_element(corr_dist_dict, i, corr_dist)  
 
-				#flow = cv2.calcOpticalFlowFarneback(prev_frame, curr_frame, flow=None, pyr_scale=0.2, levels=5, winsize=25, iterations=5, poly_n=7, poly_sigma=1.5, flags=0)
-				flow = cv2.calcOpticalFlowFarneback(prev_frame, curr_frame, flow=None, pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.5, flags=0)
-				visual, visual_warp, vel_x, vel_y = draw_flow(curr_frame, flow)
+		#--------------------	METHOD 2 :ENDS----------------------------------------------------------------
+
+
+					prev_instance = instance							
 				
-				#res_vel_roi = np.sqrt((vel_x)*(vel_x) + (vel_y)*(vel_y))
-				#print ('res_vel_roi', res_vel_roi)
-				#print ('vel_x', vel_x)
-				#print ('vel_y', vel_y)
-				#cv2.imshow('visual', visual)
-				prev_frame = curr_frame
-				#print ('visual', np.shape(visual))
+
+					###---------END -----------------------------------------
+
+					# now, extract *only* the masked region of the ROI by passing
+					# in the boolean mask array as our slice condition
+					roi = roi[mask]
+
+
+	###=============================================================================================================
+		            
+		        ####----Abhishesh START--- New idea to apply optical flow on whole frame not just on ROI ---
+
+	###=================================================================================================================
+
+	#----------------------- check if any event is happening in whole image---------------------- 
+
+					## Once I get the mask of ROI, lets get the optical flow of the mask in each frame and from there we can catagorise activities
+					# once we get the optical flow we can create another bounding box on the original frame with TAG : Picking / Not Picking
+
+					curr_frame = copy.copy(clone)
+					curr_frame = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
+					curr_frame = np.float32(curr_frame)/255.0
+					#flow = cv2.calcOpticalFlowFarneback(prev_frame, curr_frame, flow=None, pyr_scale=0.2, levels=5, winsize=25, iterations=5, poly_n=7, poly_sigma=1.5, flags=0)
+					flow = cv2.calcOpticalFlowFarneback(prev_frame, curr_frame, flow=None, pyr_scale=0.5, levels=3, winsize=15, iterations=3, poly_n=5, poly_sigma=1.5, flags=0)
+					visual, visual_warp, vel_x, vel_y = draw_flow(curr_frame, flow)
+	# 				cv2.imshow('visual', visual)
+					prev_frame = curr_frame
+
+
+	###=======================================================================================================================				
+					###---------END ----------------
+	###=======================================================================================================================
+
+# 					randomly select a color that will be used to visualize this
+# 					particular instance segmentation then create a transparent
+# 					overlay by blending the randomly selected color with the ROI
+#  					color = random.choice(COLORS)
+#  					blended = ((0.4 * color) + (0.6 * roi)).astype("uint8")
+#  					#print ('blended', blended.shape)			
+#  					# store the blended ROI in the original image
+#  					clone[startY:endY, startX:endX][mask] = blended
+
+#  					# draw the bounding box of the instance on the image
+#  					color = [int(c) for c in color]
+
+#  					# choose color of bounding box for each activity
+#  					cv2.rectangle(clone, (startX, startY), (endX, endY), color, 2)
+
+#  					# draw the predicted label and associated probability of the
+#  					# instance segmentation on the image
+#  					# 				text = "{}: {:.4f}, {}".format(LABELS[classID], confidence, "Activity" )
+#  					text = "{} : {}".format(Activity, Direction)
+
+#  					cv2.putText(clone, text, (startX, startY - 5),
+# 						cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+
+####--------------------Setting COLOR SCHEME to each activity------------------
+                         
+ 					# randomly select a color that will be used to visualize this
+ 					# particular instance segmentation then create a transparent
+ 					# overlay by blending the randomly selected color with the ROI
+					color = random.choice(COLORS)
+
+					blended = ((0.4 * color) + (0.6 * roi)).astype("uint8")
+					#print ('blended', blended.shape)			
+					# store the blended ROI in the original image
+					clone[startY:endY, startX:endX][mask] = blended
+#  					# draw the bounding box of the instance on the image
+					color = [int(c) for c in color]
+
+
+					# draw the bounding box of the instance on the image
+					color_g = [0, 255, 0] # Green 
+					color_r = [0, 0, 255] # Red
+                    
+					text_robot, need_robot = count_events(Activity_dict)
+
+					# choose color of bounding box for each activity
+					if Activity == 'Picking':
+
+						
+						cv2.rectangle(clone, (startX, startY), (endX, endY), color_g , 2)
+						    
+						# draw the predicted label and associated probability of the
+						# instance segmentation on the image
+						#text = "{}: {:.4f}, {}".format(LABELS[classID], confidence, "Activity" )
+						text = "{} : {}: {}".format(Activity, Direction, need_robot)
+						cv2.putText(clone, text, (startX, startY - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_g, 2)
+					else:
+						cv2.rectangle(clone, (startX, startY), (endX, endY), color_r, 2)
+						# draw the predicted label and associated probability of the
+						# instance segmentation on the image
+						#text = "{}: {:.4f}, {}".format(LABELS[classID], confidence, "Activity" )
+						text = "{}: {}".format(Activity, Direction, need_robot)
+						cv2.putText(clone, text, (startX, startY - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_r, 2)
+
+####-------------------------------------------------------
+						#     
+ 					# # draw the predicted label and associated probability of the
+ 					# # instance segmentation on the image
+ 					# #text = "{}: {:.4f}, {}".format(LABELS[classID], confidence, "Activity" )
+ 					# text = "{} : {}".format(Activity, Direction)
+ 					# cv2.putText(clone, text, (startX, startY - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+					# show the output image
+					cv2.imshow("Output", clone)
+					cv2.imshow('vis_flow_roi', vis_flow_roi)
+					cv2.imshow('warp_flow', vis_flow_warp)
+
+
+	######==================================
+	###create plots
+	###======================================
+
+	# 				figure, axes = plt.subplots(nrows=3, ncols=2)
+	# 				axes[0, 0].plot(resultant_velocity, '*', linewidth=0.3, markersize=1)
+	# 				axes[0, 0].set_xlabel('feature points');
+	# 				axes[0, 0].set_ylabel('velocity(pixel/hz)');
+	# 				axes[0, 0].set_title('resultant velocity of flow')
+	# 				
+	# 				axes[0, 1].plot(flow_orientation, '-', linewidth=0.3, markersize=1)
+	# 				axes[0, 1].set_xlabel('angle');
+	# 				axes[0, 1].set_ylabel('feature points)');
+	# 				axes[0, 1].set_title('resultant direction of flow')
+
+	# 				axes[1, 0].plot(vx_flow_roi, '-', linewidth=0.3, markersize=1)
+	# 				axes[1, 0].set_xlabel('feature points');
+	# 				axes[1, 0].set_ylabel('velocity(pixel/hz)');
+	# 				axes[1, 0].set_title('horizontal velocity of flow')
+
+	# 				axes[1, 1].plot(vy_flow_roi, '-', linewidth=0.3, markersize=1)
+	# 				axes[1, 1].set_xlabel('feature points');
+	# 				axes[1, 1].set_ylabel('velocity(pixel/hz)');
+	# 				axes[1, 1].set_title('vertical velocity of flow')
+
+	# 				#axes[2, 0].plot(resultant_velocity, '*', linewidth=0.3, markersize=1)
+	# 				axes[2, 0].set_xlabel('feature points');
+	# 				axes[2, 0].set_ylabel('velocity(pixel/hz)');
+	# 				axes[2, 0].set_title('resultant velocity of flow')
+
+	# 				#axes[2, 1].plot(vy_flow_warp, 'x', linewidth=0.3, markersize=1)
+	# 				axes[2, 1].set_xlabel('feature points');
+	# 				axes[2, 1].set_ylabel('velocity(pixel/hz)');
+	# 				axes[2, 1].set_title('vertical velocity of flow in warp')
+
+	# 				figure.tight_layout()
+	# 				plt.show(block=True)
+					#plt.wait()
 
 
 
+					cv2.waitKey(100)
+					## Write the output
 
-###=======================================================================================================================				
-				###---------END ----------------
-###=======================================================================================================================
+					# check if the video writer is None
+	# 				def save(self):  
 
+	# 				    f = csv.writer(open("test.csv", "w"))
 
-				# randomly select a color that will be used to visualize this
-				# particular instance segmentation then create a transparent
-				# overlay by blending the randomly selected color with the ROI
-				color = random.choice(COLORS)
-				blended = ((0.4 * color) + (0.6 * roi)).astype("uint8")
-				#print ('blended', blended.shape)			
-				# store the blended ROI in the original image
-				clone[startY:endY, startX:endX][mask] = blended
-
-				# draw the bounding box of the instance on the image
-				color = [int(c) for c in color]
-				cv2.rectangle(clone, (startX, startY), (endX, endY), color, 2)
-
-				# draw the predicted label and associated probability of the
-				# instance segmentation on the image
-				text = "{}: {:.4f}".format(LABELS[classID], confidence)
-				cv2.putText(clone, text, (startX, startY - 5),
-					cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+	# 				    with open("test.csv","w") as f:
+	# 					f.write("name\n")
+	# 					for k, v in tripo.items():
+	# 					    if v:
+	# 						f.write("{}\n".format(k.split(".")[0]))
+	# 						f.write("\n".join([s.split(".")[0] for s in v])+"\n")
 
 
-				# show the output image
-				cv2.imshow("Output", clone)
-				cv2.imshow('vis_flow_roi', vis_flow_roi)
-				cv2.imshow('warp_flow', vis_flow_warp)
+					if writer is None:
+						# initialize our video writer
+						fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+						writer = cv2.VideoWriter(args["output"], fourcc, 10, (clone.shape[1], clone.shape[0]), True)
+						#writer2 = cv2.VideoWriter(args["output2"], fourcc, 30, (visual), True)
 
+						# some information on processing single frame
+						if total > 0:
+						
+							elap = (end - start)
+							print("[INFO] single frame took {:.4f} seconds".format(elap))
+							print("[INFO] estimated total time to finish: {:.4f}".format(
+								elap * total))
+							print("[INFO] estimated total time to finish: {:.4f}".format(total))
 
-
-
-######==================================
-###create plots
-###======================================
-
-# 				figure, axes = plt.subplots(nrows=3, ncols=2)
-# 				axes[0, 0].plot(resultant_velocity, '*', linewidth=0.3, markersize=1)
-# 				axes[0, 0].set_xlabel('feature points');
-# 				axes[0, 0].set_ylabel('velocity(pixel/hz)');
-# 				axes[0, 0].set_title('resultant velocity of flow')
-# 				
-# 				axes[0, 1].plot(flow_orientation, '-', linewidth=0.3, markersize=1)
-# 				axes[0, 1].set_xlabel('angle');
-# 				axes[0, 1].set_ylabel('feature points)');
-# 				axes[0, 1].set_title('resultant direction of flow')
-
-# 				axes[1, 0].plot(vx_flow_roi, '-', linewidth=0.3, markersize=1)
-# 				axes[1, 0].set_xlabel('feature points');
-# 				axes[1, 0].set_ylabel('velocity(pixel/hz)');
-# 				axes[1, 0].set_title('horizontal velocity of flow')
-
-# 				axes[1, 1].plot(vy_flow_roi, '-', linewidth=0.3, markersize=1)
-# 				axes[1, 1].set_xlabel('feature points');
-# 				axes[1, 1].set_ylabel('velocity(pixel/hz)');
-# 				axes[1, 1].set_title('vertical velocity of flow')
-
-# 				#axes[2, 0].plot(resultant_velocity, '*', linewidth=0.3, markersize=1)
-# 				axes[2, 0].set_xlabel('feature points');
-# 				axes[2, 0].set_ylabel('velocity(pixel/hz)');
-# 				axes[2, 0].set_title('resultant velocity of flow')
-
-# 				#axes[2, 1].plot(vy_flow_warp, 'x', linewidth=0.3, markersize=1)
-# 				axes[2, 1].set_xlabel('feature points');
-# 				axes[2, 1].set_ylabel('velocity(pixel/hz)');
-# 				axes[2, 1].set_title('vertical velocity of flow in warp')
-
-# 				figure.tight_layout()
-# 				plt.show(block=True)
-				#plt.wait()
-
-
-
-				cv2.waitKey(10000)
-				## Write the output
-
-				# check if the video writer is None
-				if writer is None:
-					# initialize our video writer
-					fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-					writer = cv2.VideoWriter(args["output"], fourcc, 30, (clone.shape[1], clone.shape[0]), True)
-					#writer2 = cv2.VideoWriter(args["output2"], fourcc, 30, (visual), True)
-
-					# some information on processing single frame
-					if total > 0:
-						elap = (end - start)
-						print("[INFO] single frame took {:.4f} seconds".format(elap))
-						print("[INFO] estimated total time to finish: {:.4f}".format(
-							elap * total))
-
-				# write the output frame to disk
-				writer.write(clone)
-				#writer2.write(visual)
-
+					# write the output frame to disk
+					writer.write(clone)
+					#writer2.write(visual)
 
